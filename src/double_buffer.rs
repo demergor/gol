@@ -1,6 +1,5 @@
 use std::{
-    cmp::{max, min},
-    mem::swap,
+    cmp::{max, min}, fmt::Write, mem::swap,
 };
 
 use rand::distr::{Distribution, weighted::WeightedIndex};
@@ -15,11 +14,13 @@ pub struct DoubleBuffer {
 
     dirty_tl: (usize, usize),
     dirty_br: (usize, usize),
+
+    out_buf: String,
 }
 
 impl DoubleBuffer {
     pub fn new(width: u16, height: u16) -> DoubleBuffer {
-        const WEIGHTS: [i32; 4] = [50, 0, 0, 50];
+        const WEIGHTS: [i32; 4] = [39, 0, 0, 61];
         let cell_count = (width * height) as usize;
 
         let mut rng = rand::rng();
@@ -43,6 +44,8 @@ impl DoubleBuffer {
 
             dirty_tl: (0, 0),
             dirty_br: (width as usize, height as usize),
+
+            out_buf: String::new(),
         }
     }
 
@@ -157,30 +160,26 @@ impl DoubleBuffer {
         }
     }
 
-    pub fn render_string(&self) -> String {
+    pub fn render_string(&mut self) -> &str {
+        self.out_buf.clear();
         if self.dirty_tl.0 >= self.dirty_br.0 || self.dirty_tl.1 >= self.dirty_br.1 {
-            return String::from("");
+            return &self.out_buf;
         }
 
-        let mut buf = String::with_capacity(
-            (self.dirty_br.0 - self.dirty_tl.0)
-                * (self.dirty_br.1 - self.dirty_tl.1)
-                * 3,
-        );
-
         for y in self.dirty_tl.1..self.dirty_br.1 {
-            buf.push_str(&format!("\x1b[{};{}H", y + 1, self.dirty_tl.0 + 1));
+            self.out_buf.write_str(&format!("\x1b[{};{}H", y + 1, self.dirty_tl.0 + 1))
+                .expect("Failed to write to buffer");
             for x in self.dirty_tl.0..self.dirty_br.0 {
-                buf.push_str(match self.front[y * self.width as usize + x] {
+                self.out_buf.write_str(match self.front[y * self.width as usize + x] {
                     State::Alive => "\x1b[1mO\x1b[0m",
                     State::Reviving => "\x1b[32mO\x1b[0m",
-                    State::Dying => "\x1b[31mO\x1b[0m",
+                    State::Dying => "\x1b[31mX\x1b[0m",
                     State::Dead => " ",
-                });
+                }).expect("Failed to write to string buffer!");
             }
         }
 
-        buf
+        &self.out_buf
     }
 }
 

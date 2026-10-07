@@ -50,7 +50,7 @@ fn parse_u64(s: String) -> Option<u64> {
     let mut cur: u64 = 0;
     for ch in s.chars() {
         match ch {
-            ch if ch.is_ascii_digit() => cur = cur * 10 + u64::from(ch),
+            ch if let Some(digit) = ch.to_digit(10) => cur = cur * 10 + digit as u64,
             _ => return None,
         }
     }

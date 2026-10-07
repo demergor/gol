@@ -1,4 +1,4 @@
-use std::{mem::MaybeUninit, thread, time::Duration};
+use std::{io::Write, mem::MaybeUninit, thread, time::Duration};
 
 use crate::double_buffer::DoubleBuffer;
 
@@ -6,7 +6,7 @@ mod double_buffer;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let millis: u64 = if args.is_empty() {
+    let millis: u64 = if args.len() == 1 {
         1000
     } else if args.len() == 2 {
         parse_u64(args[1]
@@ -20,7 +20,8 @@ fn main() {
     let mut dbuf = DoubleBuffer::new(term_width, term_height);
 
     loop {
-        print!("{}", dbuf.render_string());
+        print!("{}\x1b[{};{}H", dbuf.render_string(), term_height, term_width);
+        std::io::stdout().flush().unwrap();
         dbuf.update();
         dbuf.swap();
         thread::sleep(Duration::from_millis(millis));
@@ -42,7 +43,7 @@ fn terminal_size() -> (u16, u16) {
         panic!("Couldn't read proper terminal dimensions!");
     }
 
-    (winsz.ws_col, winsz.ws_col)
+    (winsz.ws_col, winsz.ws_row)
 }
 
 fn parse_u64(s: String) -> Option<u64> {

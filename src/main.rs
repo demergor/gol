@@ -7,7 +7,7 @@ mod double_buffer;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let millis: u64 = if args.len() == 1 {
-        1000
+        100
     } else if args.len() == 2 {
         parse_u64(args[1]
             .clone())

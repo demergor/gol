@@ -1,8 +1,12 @@
 use std::{
-    cmp::{max, min}, fmt::Write, mem::swap,
+    cmp::{max, min},
+    fmt::Write,
+    mem::swap,
 };
 
 use rand::distr::{Distribution, weighted::WeightedIndex};
+
+const WEIGHTS: [i32; 4] = [39, 0, 0, 69];
 
 #[derive(Clone)]
 pub struct DoubleBuffer {
@@ -20,20 +24,11 @@ pub struct DoubleBuffer {
 
 impl DoubleBuffer {
     pub fn new(width: u16, height: u16) -> DoubleBuffer {
-        const WEIGHTS: [i32; 4] = [39, 0, 0, 61];
         let cell_count = (width * height) as usize;
 
-        let mut rng = rand::rng();
-        let dist = WeightedIndex::new(WEIGHTS).unwrap();
-        let mut front = Vec::with_capacity(cell_count);
-
-        for _ in 0..(cell_count) {
-            front.push(match dist.sample(&mut rng) {
-                0 => State::Alive,
-                3 => State::Dead,
-                _ => unreachable!(),
-            });
-        }
+        let mut front = Vec::new();
+        Vec::resize_with(&mut front, cell_count, || State::Dead);
+        populate(&mut front);
 
         DoubleBuffer {
             back: vec![State::Dead; front.len()],
@@ -54,6 +49,13 @@ impl DoubleBuffer {
     }
 
     pub fn update(&mut self) {
+        if self.front.iter().filter(|&&s| s != State::Dead).count() == 0 {
+            populate(&mut self.back);
+            self.dirty_tl = (0, 0);
+            self.dirty_br = (self.width as usize, self.height as usize);
+            return;
+        }
+
         let width = self.width as usize;
         let height = self.height as usize;
         let offsets: [i32; 8] = [
@@ -167,15 +169,18 @@ impl DoubleBuffer {
         }
 
         for y in self.dirty_tl.1..self.dirty_br.1 {
-            self.out_buf.write_str(&format!("\x1b[{};{}H", y + 1, self.dirty_tl.0 + 1))
+            self.out_buf
+                .write_str(&format!("\x1b[{};{}H", y + 1, self.dirty_tl.0 + 1))
                 .expect("Failed to write to buffer");
             for x in self.dirty_tl.0..self.dirty_br.0 {
-                self.out_buf.write_str(match self.front[y * self.width as usize + x] {
-                    State::Alive => "\x1b[1mO\x1b[0m",
-                    State::Reviving => "\x1b[32mO\x1b[0m",
-                    State::Dying => "\x1b[31mX\x1b[0m",
-                    State::Dead => " ",
-                }).expect("Failed to write to string buffer!");
+                self.out_buf
+                    .write_str(match self.front[y * self.width as usize + x] {
+                        State::Alive => "\x1b[1mO\x1b[0m",
+                        State::Reviving => "\x1b[32mO\x1b[0m",
+                        State::Dying => "\x1b[31mX\x1b[0m",
+                        State::Dead => " ",
+                    })
+                    .expect("Failed to write to string buffer!");
             }
         }
 
@@ -189,6 +194,19 @@ enum State {
     Reviving,
     Dying,
     Dead,
+}
+
+fn populate(buf: &mut Vec<State>) {
+    let mut rng = rand::rng();
+    let dist = WeightedIndex::new(WEIGHTS).unwrap();
+
+    for cell in buf {
+        *cell = match dist.sample(&mut rng) {
+            0 => State::Alive,
+            3 => State::Dead,
+            _ => unreachable!(),
+        };
+    }
 }
 
 #[cfg(test)]

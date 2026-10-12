@@ -18,11 +18,12 @@ fn main() {
 
     let (term_width, term_height) = terminal_size();
     let mut dbuf = DoubleBuffer::new(term_width, term_height);
+    let mut stagnation: u64 = 0;
 
     loop {
         print!("{}\x1b[{};{}H", dbuf.render_string(), term_height, term_width);
         std::io::stdout().flush().unwrap();
-        dbuf.update();
+        dbuf.update(&mut stagnation);
         dbuf.swap();
         thread::sleep(Duration::from_millis(millis));
     }

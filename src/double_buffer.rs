@@ -7,6 +7,7 @@ use std::{
 use rand::distr::{Distribution, weighted::WeightedIndex};
 
 const WEIGHTS: [i32; 4] = [39, 0, 0, 69];
+const STAGNATION_LIMIT: u64 = 1000;
 
 #[derive(Clone)]
 pub struct DoubleBuffer {
@@ -48,13 +49,21 @@ impl DoubleBuffer {
         swap(&mut self.front, &mut self.back);
     }
 
-    pub fn update(&mut self) {
-        if self.front.iter().filter(|&&s| s != State::Dead).count() == 0 {
+    pub fn update(&mut self, stagnation: &mut u64) {
+        if *stagnation >= STAGNATION_LIMIT
+            || self.front.iter().filter(|&&s| s != State::Dead).count() == 0
+        {
             populate(&mut self.back);
             self.dirty_tl = (0, 0);
             self.dirty_br = (self.width as usize, self.height as usize);
+
+            *stagnation = 0;
+
             return;
         }
+
+        let prev_dirty_tl = self.dirty_tl;
+        let prev_dirty_br = self.dirty_br;
 
         let width = self.width as usize;
         let height = self.height as usize;
@@ -160,6 +169,10 @@ impl DoubleBuffer {
                 self.back[cur_cell] = new_state;
             }
         }
+
+        if self.dirty_tl == prev_dirty_tl && self.dirty_br == prev_dirty_br {
+            *stagnation += 1;
+        }
     }
 
     pub fn render_string(&mut self) -> &str {
@@ -175,9 +188,9 @@ impl DoubleBuffer {
             for x in self.dirty_tl.0..self.dirty_br.0 {
                 self.out_buf
                     .write_str(match self.front[y * self.width as usize + x] {
-                        State::Alive => "\x1b[1mO\x1b[0m",
-                        State::Reviving => "\x1b[32mO\x1b[0m",
-                        State::Dying => "\x1b[31mX\x1b[0m",
+                        State::Alive => "\x1b[2mO\x1b[0m",
+                        State::Reviving => "\x1b[2;32mO\x1b[0m",
+                        State::Dying => "\x1b[2;31mX\x1b[0m",
                         State::Dead => " ",
                     })
                     .expect("Failed to write to string buffer!");
